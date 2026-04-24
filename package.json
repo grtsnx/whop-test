@@ -1,0 +1,8 @@
+{
+	"name": "whop-embed-playground",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"start": "node server.mjs"
+	}
+}

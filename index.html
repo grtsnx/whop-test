@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Whop embed playground</title>
+		<style>
+			:root {
+				font-family: system-ui, sans-serif;
+				line-height: 1.45;
+				color: #111827;
+				--whop-accent: #2563eb;
+			}
+			body {
+				max-width: 44rem;
+				margin: 2rem auto;
+				padding: 0 1rem 3rem;
+				background: #f9fafb;
+			}
+			fieldset {
+				border: 1px solid #e5e7eb;
+				border-radius: 8px;
+				margin: 0 0 1rem;
+				padding: 0.75rem 1rem 1rem;
+				background: #fff;
+			}
+			legend {
+				padding: 0 0.35rem;
+			}
+			label {
+				display: grid;
+				gap: 0.2rem;
+				margin-bottom: 0.75rem;
+				font-size: 0.9rem;
+			}
+			input,
+			select {
+				font: inherit;
+				padding: 0.35rem 0.5rem;
+			}
+			button[type="submit"] {
+				font: inherit;
+				padding: 0.5rem 1rem;
+				margin-top: 0.5rem;
+				cursor: pointer;
+			}
+			#whop-checkout {
+				min-height: 26rem;
+				width: 100%;
+				margin-top: 1.25rem;
+				border: 1px dashed #bbb;
+				border-radius: 8px;
+			}
+			#status {
+				margin-top: 0.75rem;
+				padding: 0.6rem 0.75rem;
+				border-radius: 6px;
+				font-size: 0.9rem;
+				white-space: pre-wrap;
+			}
+			#status[data-kind="error"] {
+				background: #fee;
+				border: 1px solid #e99;
+			}
+			#status[data-kind="ok"] {
+				background: #e8f7ec;
+				border: 1px solid #9c9;
+			}
+			#status[data-kind="info"] {
+				background: #eef4ff;
+				border: 1px solid #99b;
+			}
+			.hint {
+				font-size: 0.8rem;
+				color: #444;
+				margin: 0.15rem 0 0;
+			}
+			.warn {
+				background: #fff8e6;
+				border: 1px solid #e6c355;
+				border-radius: 6px;
+				padding: 0.65rem 0.75rem;
+				font-size: 0.85rem;
+				margin-bottom: 1rem;
+			}
+			.pm-grid label {
+				display: flex;
+				flex-direction: row;
+				align-items: center;
+				gap: 0.5rem;
+				margin-bottom: 0.45rem;
+				font-size: 0.9rem;
+			}
+			.pm-grid input {
+				margin: 0;
+			}
+		</style>
+	</head>
+	<body>
+		<h1>Whop embedded checkout (playground)</h1>
+		<p class="warn">
+			Run <code>npm start</code> and open this page from the dev server (not <code>file://</code>). The API key is sent only to
+			<strong>your local server</strong>, which calls Whop — do not deploy this pattern to a public host without proper auth.
+		</p>
+		<form id="form">
+			<fieldset>
+				<legend>Environment</legend>
+				<label>
+					Mode
+					<select id="environment" name="environment">
+						<option value="production">Production (api.whop.com)</option>
+						<option value="sandbox">Sandbox (sandbox-api.whop.com)</option>
+					</select>
+				</label>
+				<p class="hint">
+					Match the embed: sandbox keys and
+					<code>prod_</code> / <code>biz_</code> IDs must come from
+					<a href="https://sandbox.whop.com/">sandbox.whop.com</a> when using sandbox.
+				</p>
+			</fieldset>
+			<fieldset>
+				<legend>Credentials &amp; product</legend>
+				<label>
+					Company API key
+					<input id="apiKey" name="apiKey" type="password" autocomplete="off" placeholder="Never stored in localStorage" required />
+				</label>
+				<label>
+					Company ID
+					<input id="companyId" name="companyId" type="text" placeholder="biz_…" required />
+				</label>
+				<label>
+					Product ID
+					<input id="productId" name="productId" type="text" placeholder="prod_…" required />
+				</label>
+			</fieldset>
+			<fieldset>
+				<legend>Customer</legend>
+				<label>
+					Email (prefills checkout)
+					<input id="buyerEmail" name="buyerEmail" type="email" autocomplete="email" placeholder="customer@example.com" />
+				</label>
+				<label>
+					Checkout plan title (replaces default wording such as “Join” where Whop uses the plan title)
+					<input id="checkoutTitle" name="checkoutTitle" type="text" maxlength="120" value="Make payment" />
+				</label>
+			</fieldset>
+			<fieldset>
+				<legend>Return URL</legend>
+				<label>
+					Redirect after checkout (Whop requires <code>https://</code>)
+					<input
+						id="returnUrl"
+						name="returnUrl"
+						type="url"
+						inputmode="url"
+						autocomplete="off"
+						placeholder="https://yourapp.com/checkout/complete"
+						required
+					/>
+				</label>
+				<p class="hint">
+					Local <code>http://localhost</code> is not accepted. Use a deployed page, or an <code>https</code> tunnel (e.g. ngrok) that can open this same playground or your real thank-you page.
+				</p>
+			</fieldset>
+			<fieldset>
+				<legend>Payment methods</legend>
+				<p class="hint">Card is always enabled. In Whop <strong>sandbox</strong>, only card is supported; other choices are ignored.</p>
+				<div class="pm-grid">
+					<label>
+						<input type="checkbox" name="pm" value="card" checked disabled />
+						Card (required)
+					</label>
+					<label>
+						<input type="checkbox" name="pm" value="apple_pay" />
+						Apple Pay
+					</label>
+					<label>
+						<input type="checkbox" name="pm" value="google_pay" />
+						Google Pay
+					</label>
+					<label>
+						<input type="checkbox" name="pm" value="paypal" />
+						PayPal
+					</label>
+					<label>
+						<input type="checkbox" name="pm" value="crypto" />
+						Crypto
+					</label>
+					<label>
+						<input type="checkbox" name="pm" value="us_bank_transfer" />
+						US bank transfer (ACH)
+					</label>
+					<label>
+						<input type="checkbox" name="pm" value="cashapp" />
+						Cash App Pay
+					</label>
+				</div>
+			</fieldset>
+			<fieldset>
+				<legend>Pricing</legend>
+				<label>
+					Amount (first charge)
+					<input id="amount" name="amount" type="number" min="0.01" step="0.01" value="10" required />
+				</label>
+				<label>
+					Currency
+					<select id="currency" name="currency">
+						<option value="usd">usd</option>
+						<option value="eur">eur</option>
+						<option value="gbp">gbp</option>
+						<option value="cad">cad</option>
+						<option value="aud">aud</option>
+					</select>
+				</label>
+				<label>
+					Plan type
+					<select id="planType" name="planType">
+						<option value="one_time">One-time</option>
+						<option value="renewal">Subscription (renewal)</option>
+					</select>
+				</label>
+				<div id="renewalFields" hidden>
+					<label>
+						Recurring amount (per billing period)
+						<input id="renewalPrice" name="renewalPrice" type="number" min="0.01" step="0.01" placeholder="defaults to first charge" />
+					</label>
+					<label>
+						Billing period (days)
+						<input id="billingPeriodDays" name="billingPeriodDays" type="number" min="1" step="1" value="30" />
+					</label>
+				</div>
+				<p class="hint">
+					Dynamic totals use Whop’s
+					<a href="https://docs.whop.com/developer/guides/accept-payments#step-1-create-a-checkout-configuration">checkout configuration</a>
+					with an inline plan (<code>initial_price</code> / <code>renewal_price</code>).
+				</p>
+			</fieldset>
+			<fieldset>
+				<legend>Webhooks</legend>
+				<label>
+					Your production / staging webhook URL (reference)
+					<input id="webhookUrl" name="webhookUrl" type="url" placeholder="https://yourapp.com/api/whop-webhook" />
+				</label>
+				<p class="hint">
+					Register webhook destinations in the Whop dashboard (Developer → Webhooks). This playground does not register them via API.
+				</p>
+				<p class="hint">
+					Local test listener on this dev server: <strong id="devWebhookUrl">(start server to see URL)</strong>
+				</p>
+			</fieldset>
+			<button type="submit">Create session &amp; load embed</button>
+		</form>
+		<div id="status" role="status"></div>
+		<div id="whop-checkout" aria-live="polite"></div>
+		<script src="./app.js" defer></script>
+	</body>
+</html>
