@@ -97,23 +97,6 @@
 			.pay-row {
 				margin-top: 1rem;
 			}
-			.pay-loading-inline {
-				display: inline-flex;
-				align-items: center;
-				gap: 0.6rem;
-				padding: 0.65rem 0;
-				font-size: 0.95rem;
-				color: #374151;
-			}
-			.spinner {
-				width: 1.35rem;
-				height: 1.35rem;
-				border: 2.5px solid #e5e7eb;
-				border-top-color: var(--whop-accent);
-				border-radius: 50%;
-				animation: pay-spin 0.65s linear infinite;
-				flex-shrink: 0;
-			}
 			@keyframes pay-spin {
 				to {
 					transform: rotate(360deg);
@@ -128,6 +111,18 @@
 				background: var(--whop-accent);
 				color: #fff;
 				font-weight: 600;
+				display: inline-flex;
+				align-items: center;
+				gap: 0.5rem;
+			}
+			.pay-row button#externalPayBtn .btn-inline-spinner {
+				width: 1rem;
+				height: 1rem;
+				border: 2px solid rgba(255, 255, 255, 0.35);
+				border-top-color: #fff;
+				border-radius: 50%;
+				animation: pay-spin 0.65s linear infinite;
+				flex-shrink: 0;
 			}
 			.pay-row button#externalPayBtn:disabled {
 				opacity: 0.55;
@@ -332,12 +327,11 @@
 		<div id="status" role="status"></div>
 		<div id="whop-checkout" aria-live="polite"></div>
 		<div id="payButtonWrap" class="pay-row" hidden>
-			<div id="payLoadingState" class="pay-loading-inline">
-				<span class="spinner" aria-hidden="true"></span>
-				<span>Loading checkout…</span>
-			</div>
-			<button type="button" id="externalPayBtn" disabled hidden>Make payment</button>
-			<p id="payHint" class="hint" hidden>Whop’s default iframe button is hidden; use this control to submit checkout.</p>
+			<button type="button" id="externalPayBtn" disabled>
+				<span id="externalPayBtnSpinner" class="btn-inline-spinner" hidden aria-hidden="true"></span>
+				<span id="externalPayBtnLabel">Make payment</span>
+			</button>
+			<p id="payHint" class="hint">Whop’s default iframe button is hidden; use this control to submit checkout.</p>
 		</div>
 		<script src="./app.js" defer></script>
 	</body>

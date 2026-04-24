@@ -192,48 +192,40 @@ function applyBillingPrefillAttributes(el, billing, emailNorm) {
 	}
 }
 
-function setPayBlockLoading(isLoading) {
-	const wrap = $("payButtonWrap");
-	const loading = $("payLoadingState");
+function setPayButtonIdle(defaultLabel) {
 	const btn = $("externalPayBtn");
-	const hint = $("payHint");
-	if (isLoading) {
-		loading.hidden = false;
-		btn.hidden = true;
-		btn.disabled = true;
-		if (hint) hint.hidden = true;
-		wrap.setAttribute("aria-busy", "true");
-	} else {
-		loading.hidden = true;
-		btn.hidden = false;
-		btn.disabled = false;
-		if (hint) hint.hidden = false;
-		wrap.setAttribute("aria-busy", "false");
-	}
+	const labelEl = $("externalPayBtnLabel");
+	const spin = $("externalPayBtnSpinner");
+	const t = trimStr(defaultLabel) || "Make payment";
+	if (labelEl) labelEl.textContent = t;
+	btn.dataset.defaultPayLabel = t;
+	if (spin) spin.hidden = true;
+	btn.setAttribute("aria-busy", "false");
 }
 
 function showExternalPayButton(label) {
 	const wrap = $("payButtonWrap");
 	const btn = $("externalPayBtn");
 	wrap.hidden = false;
-	btn.textContent = trimStr(label) || "Make payment";
-	setPayBlockLoading(true);
+	setPayButtonIdle(label);
+	btn.disabled = true;
 }
 
 function hideExternalPayButton() {
 	const wrap = $("payButtonWrap");
 	wrap.hidden = true;
 	wrap.setAttribute("aria-busy", "false");
-	$("externalPayBtn").disabled = true;
-	$("externalPayBtn").hidden = true;
-	$("payLoadingState").hidden = false;
+	const btn = $("externalPayBtn");
+	btn.disabled = true;
+	const spin = $("externalPayBtnSpinner");
+	if (spin) spin.hidden = true;
 }
 
 function finishPayBlockReady(gen) {
 	if (gen !== wcoHookGeneration) return;
 	const wrap = $("payButtonWrap");
 	if (wrap.hidden) return;
-	setPayBlockLoading(false);
+	$("externalPayBtn").disabled = false;
 }
 
 function scheduleWcoHooks(emailNorm, addressForApi) {
@@ -268,7 +260,28 @@ function scheduleWcoHooks(emailNorm, addressForApi) {
 	setTimeout(tick, 200);
 }
 
+function resetPayButtonAfterError() {
+	const btn = $("externalPayBtn");
+	const labelEl = $("externalPayBtnLabel");
+	const spin = $("externalPayBtnSpinner");
+	const defaultLabel = btn.dataset.defaultPayLabel || "Make payment";
+	if (labelEl) labelEl.textContent = defaultLabel;
+	if (spin) spin.hidden = true;
+	btn.disabled = false;
+	btn.setAttribute("aria-busy", "false");
+}
+
 async function submitWhopCheckout() {
+	const btn = $("externalPayBtn");
+	const labelEl = $("externalPayBtnLabel");
+	const spin = $("externalPayBtnSpinner");
+	const defaultLabel = btn.dataset.defaultPayLabel || "Make payment";
+
+	btn.disabled = true;
+	btn.setAttribute("aria-busy", "true");
+	if (spin) spin.hidden = false;
+	if (labelEl) labelEl.textContent = "Processing payment…";
+
 	for (let i = 0; i < 45; i++) {
 		try {
 			window.wco.submit("whop-embedded-checkout");
@@ -280,10 +293,12 @@ async function submitWhopCheckout() {
 				continue;
 			}
 			setStatus(msg, "error");
+			resetPayButtonAfterError();
 			return;
 		}
 	}
 	setStatus("Checkout is still loading. Wait a second and try again.", "error");
+	resetPayButtonAfterError();
 }
 
 function mountWhopEmbed({ planId, sessionId, environment, returnUrl, buyerEmail, checkoutAccent, billing, payButtonLabel }) {
