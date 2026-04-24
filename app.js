@@ -1,7 +1,14 @@
 const STORAGE_KEY = "whop_embed_playground_v1";
 
+/** Increment to cancel in-flight wco polling when remounting checkout. */
+let wcoHookGeneration = 0;
+
 function $(id) {
 	return document.getElementById(id);
+}
+
+function trimStr(s) {
+	return (s == null ? "" : String(s)).trim();
 }
 
 function loadSaved() {
@@ -21,7 +28,34 @@ function getSelectedPaymentMethods() {
 	return [...new Set(methods)];
 }
 
+function readBillingFromForm() {
+	const countryRaw = trimStr($("billingCountry").value);
+	return {
+		name: trimStr($("billingName").value),
+		line1: trimStr($("billingLine1").value),
+		line2: trimStr($("billingLine2").value),
+		city: trimStr($("billingCity").value),
+		state: trimStr($("billingState").value),
+		postal: trimStr($("billingPostal").value),
+		country: countryRaw ? countryRaw.toUpperCase().slice(0, 2) : "",
+	};
+}
+
+function billingForSetAddress(b) {
+	if (!b.name || !b.line1 || !b.city || !b.state || !b.postal || !b.country) return null;
+	return {
+		name: b.name,
+		country: b.country,
+		line1: b.line1,
+		line2: b.line2 || undefined,
+		city: b.city,
+		state: b.state,
+		postalCode: b.postal,
+	};
+}
+
 function saveForm() {
+	const billing = readBillingFromForm();
 	const data = {
 		environment: $("environment").value,
 		companyId: $("companyId").value.trim(),
@@ -29,6 +63,13 @@ function saveForm() {
 		returnUrl: $("returnUrl").value.trim(),
 		buyerEmail: $("buyerEmail").value.trim(),
 		checkoutTitle: $("checkoutTitle").value.trim(),
+		billingName: billing.name,
+		billingLine1: billing.line1,
+		billingLine2: billing.line2,
+		billingCity: billing.city,
+		billingState: billing.state,
+		billingPostal: billing.postal,
+		billingCountry: billing.country,
 		paymentMethods: getSelectedPaymentMethods(),
 		currency: $("currency").value,
 		planType: $("planType").value,
@@ -51,6 +92,13 @@ function applySaved(saved) {
 	if (saved.returnUrl) $("returnUrl").value = saved.returnUrl;
 	if (saved.buyerEmail) $("buyerEmail").value = saved.buyerEmail;
 	if (saved.checkoutTitle) $("checkoutTitle").value = saved.checkoutTitle;
+	if (saved.billingName != null) $("billingName").value = saved.billingName;
+	if (saved.billingLine1 != null) $("billingLine1").value = saved.billingLine1;
+	if (saved.billingLine2 != null) $("billingLine2").value = saved.billingLine2;
+	if (saved.billingCity != null) $("billingCity").value = saved.billingCity;
+	if (saved.billingState != null) $("billingState").value = saved.billingState;
+	if (saved.billingPostal != null) $("billingPostal").value = saved.billingPostal;
+	if (saved.billingCountry != null) $("billingCountry").value = saved.billingCountry;
 	if (Array.isArray(saved.paymentMethods)) {
 		const set = new Set(saved.paymentMethods);
 		document.querySelectorAll('input[name="pm"]:not(:disabled)').forEach((el) => {
@@ -111,21 +159,120 @@ function resetCheckoutMount() {
 	return next;
 }
 
-function mountWhopEmbed({ planId, sessionId, environment, returnUrl, buyerEmail, checkoutAccent }) {
+function applyBillingPrefillAttributes(el, billing, emailNorm) {
+	const b = billing;
+	if (emailNorm) {
+		el.setAttribute("data-whop-checkout-prefill-email", emailNorm);
+		el.setAttribute("data-whop-checkout-hide-email", "true");
+	}
+	if (b.name) {
+		el.setAttribute("data-whop-checkout-prefill-name", b.name);
+	}
+	if (b.line1) {
+		el.setAttribute("data-whop-checkout-prefill-address-line1", b.line1);
+	}
+	if (b.line2) {
+		el.setAttribute("data-whop-checkout-prefill-address-line2", b.line2);
+	}
+	if (b.city) {
+		el.setAttribute("data-whop-checkout-prefill-address-city", b.city);
+	}
+	if (b.state) {
+		el.setAttribute("data-whop-checkout-prefill-address-state", b.state);
+	}
+	if (b.postal) {
+		el.setAttribute("data-whop-checkout-prefill-address-postal-code", b.postal);
+	}
+	if (b.country) {
+		el.setAttribute("data-whop-checkout-prefill-address-country", b.country);
+	}
+	const addrObj = billingForSetAddress(b);
+	if (addrObj) {
+		el.setAttribute("data-whop-checkout-hide-address", "true");
+	}
+}
+
+function showExternalPayButton(label) {
+	const wrap = $("payButtonWrap");
+	const btn = $("externalPayBtn");
+	wrap.hidden = false;
+	btn.textContent = trimStr(label) || "Make payment";
+	btn.disabled = true;
+}
+
+function hideExternalPayButton() {
+	const wrap = $("payButtonWrap");
+	wrap.hidden = true;
+	$("externalPayBtn").disabled = true;
+}
+
+function scheduleWcoHooks(emailNorm, addressForApi) {
+	const gen = ++wcoHookGeneration;
+	let tries = 0;
+	const max = 45;
+	const tick = async () => {
+		if (gen !== wcoHookGeneration) return;
+		tries += 1;
+		const w = typeof window !== "undefined" ? window.wco : null;
+		const btn = $("externalPayBtn");
+		if (!w || typeof w.setEmail !== "function") {
+			if (tries >= max) btn.disabled = false;
+			else setTimeout(tick, 120);
+			return;
+		}
+		try {
+			if (emailNorm) {
+				await w.setEmail("whop-embedded-checkout", emailNorm);
+			}
+			if (addressForApi) {
+				await w.setAddress("whop-embedded-checkout", addressForApi);
+			}
+			if (gen === wcoHookGeneration) btn.disabled = false;
+		} catch {
+			if (tries >= max) {
+				if (gen === wcoHookGeneration) btn.disabled = false;
+				return;
+			}
+			setTimeout(tick, 120);
+		}
+	};
+	setTimeout(tick, 200);
+}
+
+async function submitWhopCheckout() {
+	for (let i = 0; i < 45; i++) {
+		try {
+			window.wco.submit("whop-embedded-checkout");
+			return;
+		} catch (e) {
+			const msg = String(e?.message || e);
+			if (msg.includes("not initialized")) {
+				await new Promise((r) => setTimeout(r, 100));
+				continue;
+			}
+			setStatus(msg, "error");
+			return;
+		}
+	}
+	setStatus("Checkout is still loading. Wait a second and try again.", "error");
+}
+
+function mountWhopEmbed({ planId, sessionId, environment, returnUrl, buyerEmail, checkoutAccent, billing, payButtonLabel }) {
 	removeWhopLoader();
+	hideExternalPayButton();
 	const el = resetCheckoutMount();
+	el.id = "whop-embedded-checkout";
 	el.setAttribute("data-whop-checkout-plan-id", planId);
 	el.setAttribute("data-whop-checkout-session", sessionId);
 	el.setAttribute("data-whop-checkout-return-url", returnUrl);
 	el.setAttribute("data-whop-checkout-environment", environment);
 	el.setAttribute("data-whop-checkout-theme", "light");
+	el.setAttribute("data-whop-checkout-hide-submit-button", "true");
 	if (checkoutAccent) {
 		el.setAttribute("data-whop-checkout-theme-accent-color", checkoutAccent);
 	}
-	const email = normalizePrefillEmail(buyerEmail);
-	if (email) {
-		el.setAttribute("data-whop-checkout-prefill-email", email);
-	}
+	const emailNorm = normalizePrefillEmail(buyerEmail);
+	applyBillingPrefillAttributes(el, billing, emailNorm);
 
 	const s = document.createElement("script");
 	s.src = "https://js.whop.com/static/checkout/loader.js";
@@ -133,6 +280,14 @@ function mountWhopEmbed({ planId, sessionId, environment, returnUrl, buyerEmail,
 	s.defer = true;
 	s.dataset.whopLoader = "1";
 	document.head.appendChild(s);
+
+	showExternalPayButton(payButtonLabel);
+	const addrApi = billingForSetAddress(billing);
+	scheduleWcoHooks(emailNorm || null, addrApi);
+
+	$("externalPayBtn").onclick = () => {
+		submitWhopCheckout();
+	};
 }
 
 async function fetchServerInfo() {
@@ -164,6 +319,7 @@ async function onSubmit(e) {
 	const buyerEmail = $("buyerEmail").value;
 	const checkoutTitle = $("checkoutTitle").value;
 	const paymentMethods = getSelectedPaymentMethods();
+	const billing = readBillingFromForm();
 	const returnCheck = normalizeHttpsReturnUrl($("returnUrl").value);
 	if (!returnCheck.ok) {
 		setStatus(returnCheck.message, "error");
@@ -209,6 +365,7 @@ async function onSubmit(e) {
 	}
 
 	const checkoutAccent = checkoutAccentFromTheme();
+	const payLabel = trimStr(checkoutTitle) || "Make payment";
 	mountWhopEmbed({
 		planId: data.planId,
 		sessionId: data.sessionId,
@@ -216,12 +373,13 @@ async function onSubmit(e) {
 		returnUrl,
 		buyerEmail,
 		checkoutAccent,
+		billing,
+		payButtonLabel: payLabel,
 	});
 	let msg =
-		"Checkout embed mounted (light theme). Complete a test payment in sandbox with card 4242… per Whop docs.";
+		"Checkout loaded: use the blue pay button (Whop’s iframe “Join” is hidden). Card-only in sandbox.";
 	if (data.sandboxCardOnly) {
-		msg +=
-			"\n\nSandbox mode: Whop only supports card here — extra payment methods were not sent to the API.";
+		msg += "\n\nSandbox: only card is available; other payment checkboxes are ignored by Whop.";
 	}
 	setStatus(msg, "ok");
 }
@@ -246,6 +404,13 @@ function init() {
 		"returnUrl",
 		"buyerEmail",
 		"checkoutTitle",
+		"billingName",
+		"billingLine1",
+		"billingLine2",
+		"billingCity",
+		"billingState",
+		"billingPostal",
+		"billingCountry",
 		"currency",
 		"billingPeriodDays",
 		"renewalPrice",

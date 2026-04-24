@@ -43,14 +43,133 @@ const OPTIONAL_PAYMENT_METHODS = new Set([
 	"us_bank_transfer",
 ]);
 
+/**
+ * Full Whop PaymentMethodTypes enum (minus `unknown`). Used so `disabled` can turn off
+ * everything not explicitly allowed — `disabled` only applies when
+ * `include_platform_defaults` is true (see API docs).
+ */
+const ALL_PAYMENT_METHOD_TYPES = Object.freeze([
+	"acss_debit",
+	"affirm",
+	"afterpay_clearpay",
+	"alipay",
+	"alma",
+	"amazon_pay",
+	"apple",
+	"apple_pay",
+	"au_bank_transfer",
+	"au_becs_debit",
+	"bacs_debit",
+	"bancolombia",
+	"bancontact",
+	"billie",
+	"bizum",
+	"blik",
+	"boleto",
+	"capchase_pay",
+	"card",
+	"cashapp",
+	"claritypay",
+	"coinbase",
+	"crypto",
+	"custom",
+	"customer_balance",
+	"demo_pay",
+	"efecty",
+	"eps",
+	"eu_bank_transfer",
+	"fpx",
+	"gb_bank_transfer",
+	"giropay",
+	"google_pay",
+	"gopay",
+	"grabpay",
+	"id_bank_transfer",
+	"ideal",
+	"interac",
+	"kakao_pay",
+	"klarna",
+	"klarna_pay_now",
+	"konbini",
+	"kr_card",
+	"kr_market",
+	"kriya",
+	"link",
+	"mb_way",
+	"m_pesa",
+	"mercado_pago",
+	"mobilepay",
+	"mondu",
+	"multibanco",
+	"naver_pay",
+	"nequi",
+	"netbanking",
+	"ng_bank",
+	"ng_bank_transfer",
+	"ng_card",
+	"ng_market",
+	"ng_ussd",
+	"ng_wallet",
+	"nz_bank_account",
+	"oxxo",
+	"p24",
+	"pse",
+	"pay_by_bank",
+	"payco",
+	"paynow",
+	"paypal",
+	"paypay",
+	"payto",
+	"pix",
+	"platform_balance",
+	"promptpay",
+	"qris",
+	"rechnung",
+	"revolut_pay",
+	"samsung_pay",
+	"satispay",
+	"scalapay",
+	"sepa_debit",
+	"sequra",
+	"sezzle",
+	"shop_pay",
+	"shopeepay",
+	"sofort",
+	"south_korea_market",
+	"spei",
+	"splitit",
+	"sunbit",
+	"swish",
+	"tamara",
+	"twint",
+	"upi",
+	"us_bank_account",
+	"us_bank_transfer",
+	"venmo",
+	"vipps",
+	"wechat_pay",
+	"zip",
+	"coinflow",
+]);
+
 function buildPlanPaymentMethodConfiguration(environment, requested) {
 	const list = Array.isArray(requested) ? requested : [];
 	const extras = list.filter((m) => typeof m === "string" && OPTIONAL_PAYMENT_METHODS.has(m));
-	const enabled = ["card", ...new Set(extras)];
+	const wanted = new Set(["card", ...new Set(extras)]);
 	if (environment === "sandbox") {
-		return { enabled: ["card"], sandboxCardOnly: true };
+		return {
+			include_platform_defaults: true,
+			enabled: [],
+			disabled: ALL_PAYMENT_METHOD_TYPES.filter((m) => m !== "card"),
+			sandboxCardOnly: true,
+		};
 	}
-	return { enabled, sandboxCardOnly: false };
+	return {
+		include_platform_defaults: true,
+		enabled: [...new Set(extras)],
+		disabled: ALL_PAYMENT_METHOD_TYPES.filter((m) => !wanted.has(m)),
+		sandboxCardOnly: false,
+	};
 }
 
 function requireHttpsRedirectUrl(url) {
@@ -142,9 +261,9 @@ async function createCheckoutConfiguration(body) {
 	};
 	const pm = buildPlanPaymentMethodConfiguration(environment, paymentMethods);
 	plan.payment_method_configuration = {
-		include_platform_defaults: false,
+		include_platform_defaults: pm.include_platform_defaults,
 		enabled: pm.enabled,
-		disabled: [],
+		disabled: pm.disabled,
 	};
 	if (planType === "one_time") {
 		plan.initial_price = initial;

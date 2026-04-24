@@ -94,6 +94,23 @@
 			.pm-grid input {
 				margin: 0;
 			}
+			.pay-row {
+				margin-top: 1rem;
+			}
+			.pay-row button#externalPayBtn {
+				font: inherit;
+				padding: 0.65rem 1.25rem;
+				cursor: pointer;
+				border: none;
+				border-radius: 8px;
+				background: var(--whop-accent);
+				color: #fff;
+				font-weight: 600;
+			}
+			.pay-row button#externalPayBtn:disabled {
+				opacity: 0.55;
+				cursor: not-allowed;
+			}
 		</style>
 	</head>
 	<body>
@@ -136,13 +153,53 @@
 			<fieldset>
 				<legend>Customer</legend>
 				<label>
-					Email (prefills checkout)
+					Email
 					<input id="buyerEmail" name="buyerEmail" type="email" autocomplete="email" placeholder="customer@example.com" />
 				</label>
+				<p class="hint">When set, the checkout email field is hidden and this value is applied (Whop does not allow changing the built-in “Join” label; we add your own pay button below).</p>
 				<label>
-					Checkout plan title (replaces default wording such as “Join” where Whop uses the plan title)
+					Pay button text &amp; plan title
 					<input id="checkoutTitle" name="checkoutTitle" type="text" maxlength="120" value="Make payment" />
 				</label>
+				<p class="hint">Used for the visible pay button and sent as the plan title to Whop.</p>
+			</fieldset>
+			<fieldset>
+				<legend>Billing (sent into checkout)</legend>
+				<label>
+					Full name
+					<input id="billingName" name="billingName" type="text" autocomplete="name" placeholder="Jane Doe" />
+				</label>
+				<label>
+					Address line 1
+					<input id="billingLine1" name="billingLine1" type="text" autocomplete="address-line1" placeholder="123 Main St" />
+				</label>
+				<label>
+					Address line 2
+					<input id="billingLine2" name="billingLine2" type="text" autocomplete="address-line2" placeholder="Apt 4 (optional)" />
+				</label>
+				<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem">
+					<label>
+						City
+						<input id="billingCity" name="billingCity" type="text" autocomplete="address-level2" />
+					</label>
+					<label>
+						State / region
+						<input id="billingState" name="billingState" type="text" autocomplete="address-level1" placeholder="CA" />
+					</label>
+				</div>
+				<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem">
+					<label>
+						Postal code
+						<input id="billingPostal" name="billingPostal" type="text" autocomplete="postal-code" />
+					</label>
+					<label>
+						Country
+						<input id="billingCountry" name="billingCountry" type="text" autocomplete="country" placeholder="US" maxlength="2" />
+					</label>
+				</div>
+				<p class="hint">
+					Values are prefilled on the embed. If <strong>all</strong> of name, line 1, city, state, postal, and country are filled, the billing block in the embed is hidden and the same data is pushed via Whop’s API after load.
+				</p>
 			</fieldset>
 			<fieldset>
 				<legend>Return URL</legend>
@@ -250,6 +307,10 @@
 			</fieldset>
 			<button type="submit">Create session &amp; load embed</button>
 		</form>
+		<div id="payButtonWrap" class="pay-row" hidden>
+			<button type="button" id="externalPayBtn" disabled>Make payment</button>
+			<p class="hint">Whop’s default iframe button is hidden; use this control to submit checkout.</p>
+		</div>
 		<div id="status" role="status"></div>
 		<div id="whop-checkout" aria-live="polite"></div>
 		<script src="./app.js" defer></script>
