@@ -211,6 +211,20 @@ function showExternalPayButton(label) {
 	btn.disabled = true;
 }
 
+function showPaymentProgressOverlay() {
+	const el = $("paymentProgressOverlay");
+	if (!el) return;
+	el.hidden = false;
+	el.setAttribute("aria-hidden", "false");
+}
+
+function hidePaymentProgressOverlay() {
+	const el = $("paymentProgressOverlay");
+	if (!el) return;
+	el.hidden = true;
+	el.setAttribute("aria-hidden", "true");
+}
+
 function hideExternalPayButton() {
 	const wrap = $("payButtonWrap");
 	wrap.hidden = true;
@@ -219,6 +233,7 @@ function hideExternalPayButton() {
 	btn.disabled = true;
 	const spin = $("externalPayBtnSpinner");
 	if (spin) spin.hidden = true;
+	hidePaymentProgressOverlay();
 }
 
 function finishPayBlockReady(gen) {
@@ -269,6 +284,7 @@ function resetPayButtonAfterError() {
 	if (spin) spin.hidden = true;
 	btn.disabled = false;
 	btn.setAttribute("aria-busy", "false");
+	hidePaymentProgressOverlay();
 }
 
 async function submitWhopCheckout() {
@@ -281,6 +297,7 @@ async function submitWhopCheckout() {
 	btn.setAttribute("aria-busy", "true");
 	if (spin) spin.hidden = false;
 	if (labelEl) labelEl.textContent = "Processing payment…";
+	showPaymentProgressOverlay();
 
 	for (let i = 0; i < 45; i++) {
 		try {

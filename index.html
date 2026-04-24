@@ -44,12 +44,61 @@
 				margin-top: 0.5rem;
 				cursor: pointer;
 			}
+			.checkout-stage {
+				position: relative;
+				margin-top: 1.25rem;
+			}
 			#whop-checkout {
 				min-height: 26rem;
 				width: 100%;
-				margin-top: 1.25rem;
 				border: 1px dashed #bbb;
 				border-radius: 8px;
+			}
+			.payment-progress-overlay {
+				position: absolute;
+				inset: 0;
+				z-index: 40;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				padding: 1rem;
+				background: rgba(249, 250, 251, 0.92);
+				backdrop-filter: blur(4px);
+				border-radius: 8px;
+				box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.06);
+			}
+			.payment-progress-overlay[hidden] {
+				display: none !important;
+			}
+			.payment-progress-panel {
+				text-align: center;
+				max-width: 20rem;
+				padding: 1.25rem 1.5rem;
+				background: #fff;
+				border-radius: 12px;
+				box-shadow: 0 10px 40px rgba(0, 0, 0, 0.12);
+				border: 1px solid #e5e7eb;
+			}
+			.payment-progress-title {
+				margin: 0.75rem 0 0.35rem;
+				font-size: 1.05rem;
+				font-weight: 600;
+				color: #111827;
+			}
+			.payment-progress-sub {
+				margin: 0;
+				font-size: 0.85rem;
+				color: #6b7280;
+				line-height: 1.4;
+			}
+			.overlay-spinner {
+				width: 2.25rem;
+				height: 2.25rem;
+				margin: 0 auto;
+				border: 3px solid #e5e7eb;
+				border-top-color: var(--whop-accent);
+				border-radius: 50%;
+				animation: pay-spin 0.7s linear infinite;
 			}
 			#status {
 				margin-top: 0.75rem;
@@ -325,13 +374,30 @@
 			<button type="submit">Create session &amp; load embed</button>
 		</form>
 		<div id="status" role="status"></div>
-		<div id="whop-checkout" aria-live="polite"></div>
-		<div id="payButtonWrap" class="pay-row" hidden>
-			<button type="button" id="externalPayBtn" disabled>
-				<span id="externalPayBtnSpinner" class="btn-inline-spinner" hidden aria-hidden="true"></span>
-				<span id="externalPayBtnLabel">Make payment</span>
-			</button>
-			<p id="payHint" class="hint">Whop’s default iframe button is hidden; use this control to submit checkout.</p>
+		<div id="checkoutStage" class="checkout-stage">
+			<div id="whop-checkout" aria-live="polite"></div>
+			<div id="payButtonWrap" class="pay-row" hidden>
+				<button type="button" id="externalPayBtn" disabled>
+					<span id="externalPayBtnSpinner" class="btn-inline-spinner" hidden aria-hidden="true"></span>
+					<span id="externalPayBtnLabel">Make payment</span>
+				</button>
+				<p id="payHint" class="hint">Whop’s default iframe button is hidden; use this control to submit checkout.</p>
+			</div>
+			<div
+				id="paymentProgressOverlay"
+				class="payment-progress-overlay"
+				hidden
+				aria-hidden="true"
+				role="dialog"
+				aria-modal="true"
+				aria-labelledby="paymentProgressTitle"
+			>
+				<div class="payment-progress-panel">
+					<div class="overlay-spinner" aria-hidden="true"></div>
+					<p id="paymentProgressTitle" class="payment-progress-title">Payment in progress</p>
+					<p class="payment-progress-sub">Keep this page open while Whop completes your payment in the frame above.</p>
+				</div>
+			</div>
 		</div>
 		<script src="./app.js" defer></script>
 	</body>
