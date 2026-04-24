@@ -3,6 +3,49 @@ const STORAGE_KEY = "whop_embed_playground_v1";
 /** Increment to cancel in-flight wco polling when remounting checkout. */
 let wcoHookGeneration = 0;
 
+/** Tracks pay click → Whop outcome (see embed callbacks below). */
+let paymentFlowActive = false;
+let sawEmbedLoadingAfterPay = false;
+let checkoutSuccessHandled = false;
+let paymentFailureDebounceId = null;
+let paymentStallTimerId = null;
+
+const PAYMENT_FAILURE_DEBOUNCE_MS = 750;
+const PAYMENT_STALL_MS = 180000;
+
+function clearPaymentOutcomeTimers() {
+	if (paymentFailureDebounceId != null) {
+		clearTimeout(paymentFailureDebounceId);
+		paymentFailureDebounceId = null;
+	}
+	if (paymentStallTimerId != null) {
+		clearTimeout(paymentStallTimerId);
+		paymentStallTimerId = null;
+	}
+}
+
+function resetPaymentFlowTracking() {
+	paymentFlowActive = false;
+	sawEmbedLoadingAfterPay = false;
+	checkoutSuccessHandled = false;
+	clearPaymentOutcomeTimers();
+}
+
+function startPaymentStallTimer() {
+	if (paymentStallTimerId != null) clearTimeout(paymentStallTimerId);
+	paymentStallTimerId = setTimeout(() => {
+		paymentStallTimerId = null;
+		if (!paymentFlowActive || checkoutSuccessHandled) return;
+		paymentFlowActive = false;
+		sawEmbedLoadingAfterPay = false;
+		setStatus(
+			"Checkout did not confirm a result in time. If the frame above looks idle, try Make payment again or create a new session.",
+			"error",
+		);
+		resetPayButtonAfterError();
+	}, PAYMENT_STALL_MS);
+}
+
 function $(id) {
 	return document.getElementById(id);
 }
@@ -226,6 +269,7 @@ function hidePaymentProgressOverlay() {
 }
 
 function hideExternalPayButton() {
+	resetPaymentFlowTracking();
 	const wrap = $("payButtonWrap");
 	wrap.hidden = true;
 	wrap.setAttribute("aria-busy", "false");
@@ -276,6 +320,10 @@ function scheduleWcoHooks(emailNorm, addressForApi) {
 }
 
 function resetPayButtonAfterError() {
+	clearPaymentOutcomeTimers();
+	paymentFlowActive = false;
+	sawEmbedLoadingAfterPay = false;
+	checkoutSuccessHandled = false;
 	const btn = $("externalPayBtn");
 	const labelEl = $("externalPayBtnLabel");
 	const spin = $("externalPayBtnSpinner");
@@ -291,7 +339,11 @@ async function submitWhopCheckout() {
 	const btn = $("externalPayBtn");
 	const labelEl = $("externalPayBtnLabel");
 	const spin = $("externalPayBtnSpinner");
-	const defaultLabel = btn.dataset.defaultPayLabel || "Make payment";
+
+	clearPaymentOutcomeTimers();
+	checkoutSuccessHandled = false;
+	paymentFlowActive = true;
+	sawEmbedLoadingAfterPay = false;
 
 	btn.disabled = true;
 	btn.setAttribute("aria-busy", "true");
@@ -302,6 +354,7 @@ async function submitWhopCheckout() {
 	for (let i = 0; i < 45; i++) {
 		try {
 			window.wco.submit("whop-embedded-checkout");
+			startPaymentStallTimer();
 			return;
 		} catch (e) {
 			const msg = String(e?.message || e);
@@ -329,6 +382,9 @@ function mountWhopEmbed({ planId, sessionId, environment, returnUrl, buyerEmail,
 	el.setAttribute("data-whop-checkout-environment", environment);
 	el.setAttribute("data-whop-checkout-theme", "light");
 	el.setAttribute("data-whop-checkout-hide-submit-button", "true");
+	el.setAttribute("data-whop-checkout-on-complete", "onWhopCheckoutComplete");
+	el.setAttribute("data-whop-checkout-on-state-change", "onWhopCheckoutStateChange");
+	el.setAttribute("data-whop-checkout-on-address-validation-error", "onAddressValidationError");
 	if (checkoutAccent) {
 		el.setAttribute("data-whop-checkout-theme-accent-color", checkoutAccent);
 	}
@@ -504,5 +560,64 @@ function init() {
 		);
 	}
 }
+
+window.onWhopCheckoutComplete = function onWhopCheckoutComplete(planId, receiptId) {
+	clearPaymentOutcomeTimers();
+	checkoutSuccessHandled = true;
+	paymentFlowActive = false;
+	sawEmbedLoadingAfterPay = false;
+	const bits = [];
+	if (receiptId != null && String(receiptId) !== "") bits.push(`Receipt: ${receiptId}`);
+	if (planId != null && String(planId) !== "") bits.push(`Plan: ${planId}`);
+	setStatus(bits.length ? `Payment succeeded. ${bits.join(" · ")}` : "Payment succeeded.", "ok");
+	const btn = $("externalPayBtn");
+	const labelEl = $("externalPayBtnLabel");
+	const spin = $("externalPayBtnSpinner");
+	if (spin) spin.hidden = true;
+	if (labelEl) labelEl.textContent = "Payment complete";
+	if (btn) {
+		btn.disabled = true;
+		btn.setAttribute("aria-busy", "false");
+	}
+	hidePaymentProgressOverlay();
+};
+
+window.onWhopCheckoutStateChange = function onWhopCheckoutStateChange(state) {
+	if (!paymentFlowActive) return;
+	if (state === "loading") {
+		sawEmbedLoadingAfterPay = true;
+		return;
+	}
+	if (state === "ready" && sawEmbedLoadingAfterPay) {
+		if (paymentFailureDebounceId != null) clearTimeout(paymentFailureDebounceId);
+		paymentFailureDebounceId = setTimeout(() => {
+			paymentFailureDebounceId = null;
+			if (checkoutSuccessHandled || !paymentFlowActive) return;
+			paymentFlowActive = false;
+			sawEmbedLoadingAfterPay = false;
+			clearPaymentOutcomeTimers();
+			setStatus(
+				"Payment did not complete (card declined, canceled, or an error in checkout). Check the Whop frame above—you can try again.",
+				"error",
+			);
+			resetPayButtonAfterError();
+		}, PAYMENT_FAILURE_DEBOUNCE_MS);
+	}
+};
+
+window.onAddressValidationError = function onAddressValidationError(error) {
+	const msg =
+		error && typeof error === "object" && error !== null && "message" in error
+			? String(error.message)
+			: typeof error === "string"
+				? error
+				: "Billing address validation failed.";
+	if (!paymentFlowActive) return;
+	clearPaymentOutcomeTimers();
+	paymentFlowActive = false;
+	sawEmbedLoadingAfterPay = false;
+	setStatus(msg, "error");
+	resetPayButtonAfterError();
+};
 
 document.addEventListener("DOMContentLoaded", init);
