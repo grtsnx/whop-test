@@ -349,7 +349,6 @@ async function submitWhopCheckout() {
 	btn.setAttribute("aria-busy", "true");
 	if (spin) spin.hidden = false;
 	if (labelEl) labelEl.textContent = "Processing payment…";
-	showPaymentProgressOverlay();
 
 	for (let i = 0; i < 45; i++) {
 		try {
