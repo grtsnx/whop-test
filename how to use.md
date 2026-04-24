@@ -112,7 +112,7 @@ For quick local inspection, the dev server logs bodies sent to:
 1. Click **Create session and load embed**.
 2. Read any **red status** message (validation, Whop API errors).
 3. When the embed appears, wait until the **blue pay button** is enabled (the loader finishes initializing `window.wco`).
-4. Click the **blue pay button** to call `wco.submit("whop-embedded-checkout")`.
+4. Below the Whop embed, wait for **Loading checkout…** (spinner) to finish, then click the **blue pay button** to call `wco.submit("whop-embedded-checkout")`.
 
 **Sandbox test card:** see [Whop sandbox test cards](https://docs.whop.com/developer/guides/sandbox#test-cards) (for example `4242 4242 4242 4242`).
 

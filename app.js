@@ -192,18 +192,48 @@ function applyBillingPrefillAttributes(el, billing, emailNorm) {
 	}
 }
 
+function setPayBlockLoading(isLoading) {
+	const wrap = $("payButtonWrap");
+	const loading = $("payLoadingState");
+	const btn = $("externalPayBtn");
+	const hint = $("payHint");
+	if (isLoading) {
+		loading.hidden = false;
+		btn.hidden = true;
+		btn.disabled = true;
+		if (hint) hint.hidden = true;
+		wrap.setAttribute("aria-busy", "true");
+	} else {
+		loading.hidden = true;
+		btn.hidden = false;
+		btn.disabled = false;
+		if (hint) hint.hidden = false;
+		wrap.setAttribute("aria-busy", "false");
+	}
+}
+
 function showExternalPayButton(label) {
 	const wrap = $("payButtonWrap");
 	const btn = $("externalPayBtn");
 	wrap.hidden = false;
 	btn.textContent = trimStr(label) || "Make payment";
-	btn.disabled = true;
+	setPayBlockLoading(true);
 }
 
 function hideExternalPayButton() {
 	const wrap = $("payButtonWrap");
 	wrap.hidden = true;
+	wrap.setAttribute("aria-busy", "false");
 	$("externalPayBtn").disabled = true;
+	$("externalPayBtn").hidden = true;
+	$("payLoadingState").hidden = false;
+}
+
+function finishPayBlockReady(gen) {
+	if (gen !== wcoHookGeneration) return;
+	const wrap = $("payButtonWrap");
+	if (wrap.hidden) return;
+	setPayBlockLoading(false);
 }
 
 function scheduleWcoHooks(emailNorm, addressForApi) {
@@ -214,9 +244,8 @@ function scheduleWcoHooks(emailNorm, addressForApi) {
 		if (gen !== wcoHookGeneration) return;
 		tries += 1;
 		const w = typeof window !== "undefined" ? window.wco : null;
-		const btn = $("externalPayBtn");
 		if (!w || typeof w.setEmail !== "function") {
-			if (tries >= max) btn.disabled = false;
+			if (tries >= max) finishPayBlockReady(gen);
 			else setTimeout(tick, 120);
 			return;
 		}
@@ -227,10 +256,10 @@ function scheduleWcoHooks(emailNorm, addressForApi) {
 			if (addressForApi) {
 				await w.setAddress("whop-embedded-checkout", addressForApi);
 			}
-			if (gen === wcoHookGeneration) btn.disabled = false;
+			finishPayBlockReady(gen);
 		} catch {
 			if (tries >= max) {
-				if (gen === wcoHookGeneration) btn.disabled = false;
+				finishPayBlockReady(gen);
 				return;
 			}
 			setTimeout(tick, 120);
